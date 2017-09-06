@@ -1,19 +1,35 @@
 package example
 
+import java.util.Locale
+
 import scala.util.matching.Regex
 
 /*
   TODO - tail recursion
-  TODO - modify to work for code points, not chars
+  TODO - modify to work for code points, not chars (??)
  */
-
 
 /*
-  Accounts for single letter substitutions only. The list of profanity words are stored in lowercase.
+  Constructs a single regex designed to match any uses of the supplied profane words & locale. Matches against the words
+  are case insensitive and are designed to match any variants of each word that could be derived by single letter
+  substitution. For example, `sh!t` will be considered profane as it is a variant that matches `shit`.
+
+  The technique for creating the regex is as follows. First ensure that each profane word is in lowercase. Partition
+  each profane word into its constituent characters. Create a regex of the form: .*("a"|"b"|"c"|...).* formed by combining
+  the character with any of its equivalence substitutions. Ensure that any characters that have special meaning in a
+  regular expression are escaped. This regex has a leading & trailing `.*` expression to account for any embedded uses.
+  Recursively combine this regex with the regex created from the rest of the characters,
+  i.e.: .*("a"|"b"|"c"|...).*(<rest>). Finally, combine the resulting regexes for each word using the `|` operator.
+
+  Note that this accounts for single letter substitutions only.
+  Note that this works only for the BMP (Basic Multilingual Plane) since code points are not considered.
  */
+
 object ProfanityFilter {
 
-  // MUST be in all lowercase
+  val locale = Locale.getDefault()
+
+  // Ensure lowercase
   private val profaneWords = List(
     "pussy",
     "cunt",
@@ -21,10 +37,11 @@ object ProfanityFilter {
     "fuck",
     "cocksucker",
     "motherfucker",
-    "tits"
-  )
+    "tits",
+    "labia"
+  ).map(_.toLowerCase(locale))
 
-  // Single letter substitutions. Keys MUST be lowercase since the list of profane words are lowercase.
+  // Single letter substitutions. Ensure keys and values are lowercase.
   private val subs = Map[Char, List[String]](
     's' -> List("5", "$"),
     'u' -> List("v"),
@@ -32,8 +49,9 @@ object ProfanityFilter {
     'c' -> List("k"),
     'k' -> List("c"),
     'f' -> List("Ph"),
-    'a' -> List("@")
-  )
+    'a' -> List("@"),
+    'l' -> List("\\")
+  ).map { case (k, v) => (k.toLower, v.map(_.toLowerCase(locale))) }
 
   /*
     These must be escaped:
@@ -55,41 +73,48 @@ object ProfanityFilter {
     '[' -> """\[""",
     '{' -> """\{"""
   )
-  private def escape(s: String): String = {
-    val l = s.toList.map(c => specialChars.getOrElse(c, c.toString))
-    l.reduce(_ ++ _)
-  }
+
+  private def escape(s: String): String = s.toList.map(c => specialChars.getOrElse(c, c.toString)).mkString
 
   // Returns a regex for the single char of the form (a|b|c) where a,b,& c are strings
   // `c` is guaranteed to be lower case when this is called
   private def charRegex(c: Char): String = {
-    val strings = c.toString :: subs.getOrElse(c, List.empty).map(_.toLowerCase)
+    // The regex for a single code point is itself plus any substitutions. Matches are case insensitive.
+    val strings = c.toString :: subs.getOrElse(c, List.empty)
     val escaped = strings.map(escape)
 
     escaped.mkString("(", "|", ")")
   }
 
+  // Returns a regex for the passed word that accounts for any embedded uses.
+  // The passed word is guaranteed to be in lowercase when this is called.
   private def wordRegex(word: String): Regex = {
     def _wordRegex(chars: List[Char]): String = chars match {
       case Nil => ""
       case head :: Nil => charRegex(head)
       case head :: tail => charRegex(head) + "(" + _wordRegex(tail) + ")"
     }
-    (".*" + _wordRegex(word.toLowerCase.toList) + ".*").r
+
+    // Construct regex to account for embedded uses
+    (".*" + _wordRegex(word.toList) + ".*").r
   }
 
+  // The mondo profanity regex
   val profanityRegex: Regex = {
     val rs = profaneWords.map(wordRegex)
     rs.mkString("|").r
   }
 
+  // Checks the passed list of words against the filter and returns the passed word with a Boolean flag: true if it is
+  // profane, false if not.
   def profanityCheck(words: List[String]): List[(String, Boolean)] = {
-    words.map(w => w.toLowerCase match {
+    words.map(w => w.toLowerCase(locale) match {
       case profanityRegex(_*) => (w, true)
       case _ => (w, false)
     })
   }
 
+  // Test
   def main(args: Array[String]): Unit = {
     val profane = List("em-pu$$y-bedded", "cvnt", "kunt", "@pple", "phuck", "Phuck")
 

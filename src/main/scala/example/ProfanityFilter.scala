@@ -2,10 +2,10 @@ package example
 
 import java.util.Locale
 
+import scala.annotation.tailrec
 import scala.util.matching.Regex
 
 /*
-  TODO - tail recursion
   TODO - modify to work for code points, not chars (??)
  */
 
@@ -89,14 +89,16 @@ object ProfanityFilter {
   // Returns a regex for the passed word that accounts for any embedded uses.
   // The passed word is guaranteed to be in lowercase when this is called.
   private def wordRegex(word: String): Regex = {
-    def _wordRegex(chars: List[Char]): String = chars match {
-      case Nil => ""
-      case head :: Nil => charRegex(head)
-      case head :: tail => charRegex(head) + "(" + _wordRegex(tail) + ")"
+
+    @tailrec
+    def _wordRegex(chars: List[Char], acc: List[String]): String = chars match {
+      // toArray is called to ensure `reduceRight` is tail recursive
+      case Nil => acc.reverse.toArray.reduceRight[String] { case (s1, s2) => s"$s1($s2)" }
+      case head :: tail => _wordRegex(tail, charRegex(head) :: acc)
     }
 
     // Construct regex to account for embedded uses
-    (".*" + _wordRegex(word.toList) + ".*").r
+    (".*" + _wordRegex(word.toList, List.empty) + ".*").r
   }
 
   // The mondo profanity regex

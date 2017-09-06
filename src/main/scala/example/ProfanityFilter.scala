@@ -42,14 +42,12 @@ object ProfanityFilter {
   ).map(_.toLowerCase(locale))
 
   // Single letter substitutions. Ensure keys and values are lowercase.
+  // Only consonants need to be in this map. Vowels can be replaced with any single character.
   private val subs = Map[Char, List[String]](
     's' -> List("5", "$"),
-    'u' -> List("v"),
-    'i' -> List("!", "1", "|"),
     'c' -> List("k"),
     'k' -> List("c"),
     'f' -> List("Ph"),
-    'a' -> List("@"),
     'l' -> List("\\")
   ).map { case (k, v) => (k.toLower, v.map(_.toLowerCase(locale))) }
 
@@ -87,7 +85,7 @@ object ProfanityFilter {
       val escaped = strings.map(escape)
       escaped.mkString("(", "|", ")")
   }
-  
+
 
   // Returns a regex for the passed word that accounts for any embedded uses.
   // The passed word is guaranteed to be in lowercase when this is called.

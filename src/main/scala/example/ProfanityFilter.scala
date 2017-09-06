@@ -43,7 +43,7 @@ object ProfanityFilter {
 
   // Single letter substitutions. Ensure keys and values are lowercase.
   // Only consonants need to be in this map. Vowels can be replaced with any single character.
-  private val subs = Map[Char, List[String]](
+  private val substitutions = Map[Char, List[String]](
     's' -> List("5", "$"),
     'c' -> List("k"),
     'k' -> List("c"),
@@ -78,10 +78,10 @@ object ProfanityFilter {
   // `c` is guaranteed to be lower case when this is called
   // In the special case of a vowel, anything can match
   private def charRegex(c: Char): String = c match {
-    case 'a'|'e'|'i'|'o'|'u' => "(.)"
+    case 'a'|'e'|'i'|'o'|'u'|'y' => "(.)"
     case other =>
       // The regex for a single code point is itself plus any substitutions. Matches are case insensitive.
-      val strings = c.toString :: subs.getOrElse(c, List.empty)
+      val strings = c.toString :: substitutions.getOrElse(c, List.empty)
       val escaped = strings.map(escape)
       escaped.mkString("(", "|", ")")
   }

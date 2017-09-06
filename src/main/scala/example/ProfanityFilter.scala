@@ -32,13 +32,13 @@ object ProfanityFilter {
   // Ensure lowercase
   private val profaneWords = List(
     "pussy",
-    "cunt",
     "shit",
+    "piss",
+    "cunt",
     "fuck",
     "cocksucker",
     "motherfucker",
-    "tits",
-    "labia"
+    "tits"
   ).map(_.toLowerCase(locale))
 
   // Single letter substitutions. Ensure keys and values are lowercase.
@@ -78,13 +78,16 @@ object ProfanityFilter {
 
   // Returns a regex for the single char of the form (a|b|c) where a,b,& c are strings
   // `c` is guaranteed to be lower case when this is called
-  private def charRegex(c: Char): String = {
-    // The regex for a single code point is itself plus any substitutions. Matches are case insensitive.
-    val strings = c.toString :: subs.getOrElse(c, List.empty)
-    val escaped = strings.map(escape)
-
-    escaped.mkString("(", "|", ")")
+  // In the special case of a vowel, anything can match
+  private def charRegex(c: Char): String = c match {
+    case 'a'|'e'|'i'|'o'|'u' => "(.)"
+    case other =>
+      // The regex for a single code point is itself plus any substitutions. Matches are case insensitive.
+      val strings = c.toString :: subs.getOrElse(c, List.empty)
+      val escaped = strings.map(escape)
+      escaped.mkString("(", "|", ")")
   }
+  
 
   // Returns a regex for the passed word that accounts for any embedded uses.
   // The passed word is guaranteed to be in lowercase when this is called.
@@ -92,7 +95,8 @@ object ProfanityFilter {
 
     @tailrec
     def _wordRegex(chars: List[Char], acc: List[String]): String = chars match {
-      // toArray is called to ensure `reduceRight` is tail recursive
+      // Enclose trailing regex in parens
+      // `toArray` is called to ensure `reduceRight` is tail recursive
       case Nil => acc.reverse.toArray.reduceRight[String] { case (s1, s2) => s"$s1($s2)" }
       case head :: tail => _wordRegex(tail, charRegex(head) :: acc)
     }
@@ -102,10 +106,7 @@ object ProfanityFilter {
   }
 
   // The mondo profanity regex
-  val profanityRegex: Regex = {
-    val rs = profaneWords.map(wordRegex)
-    rs.mkString("|").r
-  }
+  val profanityRegex: Regex = profaneWords.map(wordRegex).mkString("|").r
 
   // Checks the passed list of words against the filter and returns the passed word with a Boolean flag: true if it is
   // profane, false if not.

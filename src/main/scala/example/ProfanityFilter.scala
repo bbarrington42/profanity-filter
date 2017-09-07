@@ -27,22 +27,17 @@ import scala.util.matching.Regex
 
 object ProfanityFilter {
 
+  // TODO Externally supplied
   val locale = Locale.getDefault()
+  val profanity = List.empty[String]
+
 
   // Ensure lowercase
-  private val profaneWords = List(
-    "pussy",
-    "shit",
-    "piss",
-    "cunt",
-    "fuck",
-    "cocksucker",
-    "motherfucker",
-    "tits"
-  ).map(_.toLowerCase(locale))
+  private val profaneWords = profanity.map(_.toLowerCase(locale))
 
   // Single letter substitutions. Ensure keys and values are lowercase.
   // Only consonants need to be in this map. Vowels can be replaced with any single character.
+  // TODO Finish this
   private val substitutions = Map[Char, List[String]](
     's' -> List("5", "$"),
     'c' -> List("k"),

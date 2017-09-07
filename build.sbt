@@ -1,28 +1,29 @@
-name := course.value + "-" + assignment.value
+name := "profanity-filter"
 
-scalaVersion := "2.11.7"
+version := "1.0"
 
-scalacOptions ++= Seq("-deprecation")
+scalaVersion := "2.12.1"
 
-// grading libraries
-libraryDependencies += "junit" % "junit" % "4.10" % "test"
-libraryDependencies += "ch.epfl.lamp" % "scala-grading-runtime_2.11" % "0.3"
+scalacOptions ++= Seq(
+  "-feature",
+  "-target:jvm-1.8",
+  "-encoding", "UTF-8",
+  "-unchecked",
+  "-deprecation",
+  "-Xfuture",
+  "-Yno-adapted-args",
+  "-Ywarn-dead-code",
+  "-Ywarn-numeric-widen",
+  "-Ywarn-value-discard",
+  "-Ywarn-unused"
+)
 
-// include the common dir
-commonSourcePackages += "common"
 
-courseId := "PeZYFz-zEeWB_AoW1KYI4Q"
+libraryDependencies ++= Seq(
+  "org.scalaz" %% "scalaz-core" % "7.2.10",
+  "com.typesafe.akka" %% "akka-http-core" % "10.0.9",
+  "com.typesafe.play" %% "play-ws" % "2.6.3"
+)
 
-assignmentsMap := {
-  val styleSheetPath = (baseDirectory.value / ".." / ".." / "project" / "scalastyle_config.xml").getPath
-  Map(
-    "example" -> Assignment(
-      packageName = "example",
-      key = "lLkU5d7xEeWGkg7lknKHZw",
-      itemId = "AYDPu",
-      partId = "5QFuy",
-      maxScore = 10d,
-      styleScoreRatio = 0.2,
-      styleSheet = styleSheetPath)
-  )
-}
+//resolvers += "scalaz-bintray" at "http://dl.bintray.com/scalaz/releases"
+

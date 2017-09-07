@@ -98,7 +98,6 @@ import org.scalatest.junit.JUnitRunner
    * implemented for this assignment. We first import all members of the
    * `List` object.
    */
-  import Lists._
 
 
   /**

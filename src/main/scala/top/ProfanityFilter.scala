@@ -2,6 +2,9 @@ package top
 
 import java.util.Locale
 
+import scala.annotation.tailrec
+import scala.util.matching.Regex
+
 /*
   TODO - modify to work for code points, not chars (??)
  */

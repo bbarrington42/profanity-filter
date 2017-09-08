@@ -1,8 +1,9 @@
 package top
 
-import java.io.{InputStream, OutputStream}
+import java.io.{InputStream, OutputStream, OutputStreamWriter}
 
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
+import play.api.libs.json.{JsNumber, JsObject, Json}
 
 /*
   Handles a request to check words for profanity. Retrieves the profanity regex from its bucket,
@@ -35,6 +36,15 @@ class FilterRequest {
   def handler(in: InputStream, out: OutputStream): Unit = {
     // todo Ensure words are transformed to lower case before checking
 
+    // todo Testing - just print the input and echo it back
+    val input = Json.parse(in).asOpt[JsObject].getOrElse(JsObject.empty).value
+    println(input)
+
+    val output = JsObject(Map("statusCode" -> JsNumber(200), "body" -> JsObject(input)))
+
+    val ow = new OutputStreamWriter(out)
+
+    ow.write(Json.prettyPrint(output))
   }
 }
 

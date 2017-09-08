@@ -26,7 +26,7 @@ class ProfanityChange {
 
   private val s3 = AmazonS3ClientBuilder.defaultClient()
 
-  // todo Should be in configuration
+  // todo Should be in configuration - MAKE this an environment variable!
   val KEY = "profanity.json"
 
   def handler(event: S3Event): Unit = {

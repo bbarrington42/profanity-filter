@@ -1,5 +1,7 @@
 package top
 
+import java.util.Locale
+
 import com.amazonaws.services.lambda.runtime.events.S3Event
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import play.api.libs.json._
@@ -20,31 +22,49 @@ import scala.collection.JavaConverters._
     4 - Upload the regex to S3.
  */
 
-class RegexBuilder {
+class ProfanityChange {
 
   private val s3 = AmazonS3ClientBuilder.defaultClient()
 
-  def build(event: S3Event): Unit = {
+  // todo Should be in configuration
+  val KEY = "profanity.json"
 
-    val bucketAndKey = event.getRecords.asScala.headOption.map(record => {
-      val s3Entity = record.getS3
-      (s3Entity.getBucket.getName, s3Entity.getObject.getKey)
-    })
+  def handler(event: S3Event): Unit = {
 
-    bucketAndKey.foreach { case (bucket, key) =>
+    val records = event.getRecords.asScala
+    val len = records.length
+    println(s"Received $len events")
 
-      println(s"bucket: $bucket, key: $key")
+    // Filter for the one we are looking for
+    val optRecord = records.filter(_.getS3.getObject.getKey == KEY).headOption
+    optRecord.fold {
+      println(s"$KEY not found!")
+    }(r => {
+      // Get the bucket name
+      val bucket = r.getS3.getBucket.getName
 
-      val profanityList = getProfanityList(bucket, key)
+      // Get the list of profane names
+      val profanityList = getProfanityList(bucket, KEY)
 
       val s = profanityList.mkString(", ")
       println(s)
-    }
+
+      // todo Question: Should we create a regex for each locale?
+      val regex = ProfanityFilter(Locale.getDefault).build(profanityList)
+
+      println(regex)
+
+      // Store this regex in the "ccfs-profanity-regex" bucket
+      // TODO This can go into the same bucket as the profanity list
+      s3.putObject("ccfs-profanity-regex", "regex.txt", regex)
+
+    })
+
   }
 
-  implicit val readProfanityList = new Reads[Seq[String]] {
+  private implicit val readProfanityList = new Reads[Seq[String]] {
     override def reads(json: JsValue) = try {
-      val entries = json.as[JsArray].value.map(e => e.as[String])
+      val entries = json.as[JsArray].value.map(_.as[String])
       JsSuccess(entries)
     } catch {
       case e: Throwable => JsError(e.getMessage)
@@ -53,7 +73,6 @@ class RegexBuilder {
 
   private def getProfanityList(bucket: String, key: String): Seq[String] = {
     val json = s3.getObjectAsString(bucket, key)
-    println(json)
     Json.parse(json).as[Seq[String]]
   }
 }

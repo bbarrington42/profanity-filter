@@ -25,19 +25,11 @@ import scala.util.matching.Regex
   Note that this works only for the BMP (Basic Multilingual Plane) since code points are not considered.
  */
 
-object ProfanityFilter {
-
-  // TODO Externally supplied
-  val locale = Locale.getDefault()
-  val profanity = List.empty[String]
-
-
-  // Ensure lowercase
-  private val profaneWords = profanity.map(_.toLowerCase(locale))
+class ProfanityFilter(locale: Locale) {
 
   // Single letter substitutions. Ensure keys and values are lowercase.
   // Only consonants need to be in this map. Vowels can be replaced with any single character.
-  // TODO Finish this
+  // TODO Finish this - include all consonants
   private val substitutions = Map[Char, List[String]](
     's' -> List("5", "$"),
     'c' -> List("k"),
@@ -73,7 +65,7 @@ object ProfanityFilter {
   // `c` is guaranteed to be lower case when this is called
   // In the special case of a vowel, anything can match
   private def charRegex(c: Char): String = c match {
-    case 'a'|'e'|'i'|'o'|'u'|'y' => "(.)"
+    case 'a' | 'e' | 'i' | 'o' | 'u' | 'y' => "(.)"
     case other =>
       // The regex for a single code point is itself plus any substitutions. Matches are case insensitive.
       val strings = c.toString :: substitutions.getOrElse(c, List.empty)
@@ -98,28 +90,12 @@ object ProfanityFilter {
     (".*" + _wordRegex(word.toList, List.empty) + ".*").r
   }
 
-  // The mondo profanity regex
-  val profanityRegex: Regex = profaneWords.map(wordRegex).mkString("|").r
+  // Ensure lowercase
+  def build(profanity: Seq[String]): String =
+    profanity.map(_.toLowerCase(locale)).map(wordRegex).mkString("|")
 
-  // Checks the passed list of words against the filter and returns the passed word with a Boolean flag: true if it is
-  // profane, false if not.
-  def profanityCheck(words: List[String]): List[(String, Boolean)] = {
-    words.map(w => w.toLowerCase(locale) match {
-      case profanityRegex(_*) => (w, true)
-      case _ => (w, false)
-    })
-  }
+}
 
-  // Test
-  def main(args: Array[String]): Unit = {
-    val profane = List("em-pu$$y-bedded", "cvnt", "kunt", "@pple", "phuck", "Phuck")
-
-    println(profanityRegex)
-
-    val result = profanityCheck(profane)
-
-    println(result)
-
-  }
-
+object ProfanityFilter {
+  def apply(locale: Locale) = new ProfanityFilter(locale)
 }

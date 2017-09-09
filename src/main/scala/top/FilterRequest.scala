@@ -39,21 +39,23 @@ in a single jar with a large number of .class files.
 todo optimize memory settings
 */
 
-class FilterRequest {
+object FilterRequest {
 
-  private val s3 = AmazonS3ClientBuilder.defaultClient()
+  //private val s3 = AmazonS3ClientBuilder.defaultClient()
 
   def handler(in: InputStream, out: OutputStream, context: Context): Unit = {
     // todo Ensure words are transformed to lower case before checking for profanity
     val logger = context.getLogger
 
+    logger.log("Handler invoked")
+
     // todo Testing
-    val input = Json.parse(in).asOpt[JsObject].getOrElse(JsObject.empty)
-    logger.log(input.toString)
+//    val input = Json.parse(in).asOpt[JsObject].getOrElse(JsObject.empty)
+//    logger.log(input.toString)
 
     val headers = Json.obj("Content-Type" -> "application/json")
-    val output = Json.obj("statusCode" -> 200, "headers" -> headers,
-      "body" -> "{\"field\": \"blah\"}")
+    val output = Json.obj("statusCode" -> 200, "isBase64Encoded" -> false,
+      "headers" -> headers, "body" -> "{\"field\": \"blah\"}")
 
     val response = Json.prettyPrint(output)
     logger.log(s"response: $response")

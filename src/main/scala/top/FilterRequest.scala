@@ -1,6 +1,6 @@
 package top
 
-import java.io.{InputStream, OutputStream, OutputStreamWriter}
+import java.io._
 
 import com.amazonaws.services.lambda.runtime.Context
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
@@ -39,30 +39,49 @@ in a single jar with a large number of .class files.
 todo optimize memory settings
 */
 
+
 object FilterRequest {
 
-  //private val s3 = AmazonS3ClientBuilder.defaultClient()
+  private val s3 = AmazonS3ClientBuilder.defaultClient()
 
   def handler(in: InputStream, out: OutputStream, context: Context): Unit = {
     // todo Ensure words are transformed to lower case before checking for profanity
     val logger = context.getLogger
 
-    logger.log("Handler invoked")
-
     // todo Testing
-//    val input = Json.parse(in).asOpt[JsObject].getOrElse(JsObject.empty)
-//    logger.log(input.toString)
+    val input = Json.parse(in).asOpt[JsObject].getOrElse(JsObject.empty)
+    logger.log(input.toString)
 
-    val headers = Json.obj("Content-Type" -> "application/json")
-    val output = Json.obj("statusCode" -> 200, "isBase64Encoded" -> false,
-      "headers" -> headers, "body" -> "{\"field\": \"blah\"}")
-
-    val response = Json.prettyPrint(output)
-    logger.log(s"response: $response")
+    /*
+    AWS documentation says the response should look like this:
+    {
+      "statusCode": 200,
+      "headers": {"Content-Type": "application/json"},
+      "body": "body_text_goes_here"
+    }
+     */
 
     val writer = new OutputStreamWriter(out)
 
-    writer.write(response)
+    withWriter(writer, w => {
+
+      val body = Json.obj("field" -> "blah")
+      val headers = Json.obj("Content-Type" -> "application/json")
+      val output = Json.obj("statusCode" -> 200, "isBase64Encoded" -> false,
+        "headers" -> headers, "body" -> Json.stringify(body))
+
+      val response = Json.stringify(output)
+      logger.log(s"response: $response")
+
+      w.write(response)
+    })
+
+  }
+
+  def withWriter[T <: Writer](writer: T, f: Writer => Unit): Unit = try {
+    f(writer)
+  } finally {
+    writer.close()
   }
 }
 

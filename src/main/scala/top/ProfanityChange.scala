@@ -22,7 +22,7 @@ import scala.collection.JavaConverters._
     4 - Upload the regex to S3.
  */
 
-class ProfanityChange {
+object ProfanityChange {
 
   private val s3 = AmazonS3ClientBuilder.defaultClient()
 

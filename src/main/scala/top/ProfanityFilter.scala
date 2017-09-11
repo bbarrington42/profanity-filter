@@ -67,8 +67,8 @@ class ProfanityFilter(locale: Locale) {
   private def charRegex(c: Char): String = c match {
     case 'a' | 'e' | 'i' | 'o' | 'u' | 'y' => "(.)"
     case other =>
-      // The regex for a single code point is itself plus any substitutions. Matches are case insensitive.
-      val strings = c.toString :: substitutions.getOrElse(c, List.empty)
+      // The regex for a single code point is one or more of itself, plus any substitutions. Matches are case insensitive.
+      val strings = s"$c{1,}" :: substitutions.getOrElse(c, List.empty)
       val escaped = strings.map(escape)
       escaped.mkString("(", "|", ")")
   }

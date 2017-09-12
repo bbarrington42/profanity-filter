@@ -2,6 +2,8 @@ package top
 
 import java.util.Locale
 
+import play.api.libs.json.Json
+
 import scala.annotation.tailrec
 import scala.util.matching.Regex
 
@@ -56,7 +58,8 @@ class ProfanityFilter(locale: Locale) {
     '(' -> """\(""",
     ')' -> """\)""",
     '[' -> """\[""",
-    '{' -> """\{"""
+    '{' -> """\{""",
+    '"' -> """\""""
   )
 
   private def escape(s: String): String = s.toList.map(c => specialChars.getOrElse(c, c.toString)).mkString
@@ -68,15 +71,14 @@ class ProfanityFilter(locale: Locale) {
     case 'a' | 'e' | 'i' | 'o' | 'u' | 'y' => "(.)"
     case other =>
       // The regex for a single code point is one or more of itself, plus any substitutions. Matches are case insensitive.
-      val strings = s"$c{1,}" :: substitutions.getOrElse(c, List.empty)
-      val escaped = strings.map(escape)
-      escaped.mkString("(", "|", ")")
+      val strings = s"$c{1,}" :: substitutions.getOrElse(c, List.empty).map(escape)
+      strings.mkString("(", "|", ")")
   }
 
 
   // Returns a regex for the passed word that accounts for any embedded uses.
   // The passed word is guaranteed to be in lowercase when this is called.
-  private def wordRegex(word: String): Regex = {
+  private def wordRegex(word: String): String = {
 
     @tailrec
     def _wordRegex(chars: List[Char], acc: List[String]): String = chars match {
@@ -87,12 +89,15 @@ class ProfanityFilter(locale: Locale) {
     }
 
     // Construct regex to account for embedded uses
-    (".*" + _wordRegex(word.toList, List.empty) + ".*").r
+    (".*" + _wordRegex(word.toList, List.empty) + ".*")
   }
 
   // Ensure lowercase
-  def build(profanity: Seq[String]): String =
-    profanity.map(_.toLowerCase(locale)).map(wordRegex).mkString("|")
+  def build(profanity: Seq[String]): String = {
+    // todo Eventually return more than one regex. For now just return the one in an array
+    val regex = profanity.map(_.toLowerCase(locale)).map(wordRegex).mkString("|")
+    Json.stringify(Json.obj("regexes" -> Json.arr(regex)))
+  }
 
 }
 

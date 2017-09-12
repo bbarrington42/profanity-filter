@@ -51,6 +51,7 @@ object FilterRequest {
   implicit val termsRead = Json.reads[InputTerms]
 
   // todo Bucket & key should be provided via the environment. For now just hard-code
+  // todo This should be updated to handle multiple regex objects in this bucket
   val bucket = "ccfs-profanity-regex"
   val key = "regex.txt"
 
@@ -75,38 +76,48 @@ object FilterRequest {
     val response = Json.stringify(tuples.fold(t => {
       val error = t.getMessage
       logger.log(error)
-      Json.obj("statusCode" -> 500, "body" -> error)
+      buildResponse(500, error)
     }, items => {
       // Construct JsArray from tuples
       val arr = Json.arr(items.map { case (term, profane) => Json.obj("term" -> term, "profane" -> profane) })
       val body = Json.obj("result" -> arr)
-      Json.obj("statusCode" -> 200, "body" -> Json.stringify(body))
+      buildResponse(200, body)
     }))
 
     logger.log(s"response: $response")
 
     // ...and send it
-    /*
-    AWS documentation says the response should look like this:
-    {
-      "statusCode": 200,
-      "headers": {"Content-Type": "application/json"},
-      "body": "body_text_goes_here"
-    }
-     */
-
     withWriter(new OutputStreamWriter(out), w => {
       w.write(response)
     })
 
   }
 
-  private def getBody(obj: JsObject): InputTerms = Json.parse((obj \ "body").as[String]).as[InputTerms]
+  private def getBody(obj: JsObject): InputTerms =
+    // The 'body' element is represented as a String, so it must be parsed first
+    Json.parse((obj \ "body").as[String]).as[InputTerms]
 
   private def parseInput(in: InputStream): Throwable \/ JsObject =
     \/.fromTryCatchNonFatal(Json.parse(in).as[JsObject])
 
 
+  /*
+    Helpers to build the response.
+    The response should look like this:
+    {
+      "statusCode": 200,
+      "headers": {"Content-Type": "application/json"},
+      "body": "body_text_goes_here"
+    }
+   */
+  private def buildResponse(status: Int, body: JsObject): JsObject =
+    Json.obj("statusCode" -> status, "body" -> Json.stringify(body))
+
+  private def buildResponse(status: Int, body: String): JsObject =
+    Json.obj("statusCode" -> status, "body" -> body)
+
+
+  // todo Modify to return a sequence of Regexes
   private def getRegex: Throwable \/ Regex = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal(s3.getObjectAsString(bucket, key).r)

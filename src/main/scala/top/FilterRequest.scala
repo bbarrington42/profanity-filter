@@ -128,6 +128,7 @@ object FilterRequest {
         ]
      }'
    */
+  // Modify this to return a List of Futures. Return the result of the first failing or success if no failures. (?)
   private def getRegexes: Throwable \/ List[Regex] = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal {

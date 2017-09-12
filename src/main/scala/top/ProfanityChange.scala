@@ -50,6 +50,7 @@ object ProfanityChange {
       println(s)
 
       // todo Question: Should we create a regex for each locale?
+      // todo Modify this to store more than one regex
       val regex = ProfanityFilter(Locale.getDefault).build(profanityList)
 
       println(regex)

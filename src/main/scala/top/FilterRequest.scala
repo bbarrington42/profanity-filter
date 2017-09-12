@@ -133,6 +133,7 @@ object FilterRequest {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal {
       val json = s3.getObjectAsString(bucket, key)
+      println(s"Regex json: $json")
       val arr = (Json.parse(json).as[JsObject] \ "regexes").as[JsArray]
       arr.value.map(_.as[String].r).toList
     }

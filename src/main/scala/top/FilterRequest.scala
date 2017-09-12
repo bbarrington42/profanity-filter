@@ -5,8 +5,9 @@ import java.util.Locale
 
 import com.amazonaws.services.lambda.runtime.Context
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
-import play.api.libs.json.{JsObject, Json}
+import play.api.libs.json.{JsArray, JsObject, Json}
 
+import scala.annotation.tailrec
 import scala.util.matching.Regex
 import scalaz.\/
 
@@ -94,7 +95,7 @@ object FilterRequest {
   }
 
   private def getBody(obj: JsObject): InputTerms =
-    // The 'body' element is represented as a String, so it must be parsed first
+  // The 'body' element is represented as a String, so it must be parsed first
     Json.parse((obj \ "body").as[String]).as[InputTerms]
 
   private def parseInput(in: InputStream): Throwable \/ JsObject =
@@ -117,21 +118,37 @@ object FilterRequest {
     Json.obj("statusCode" -> status, "body" -> body)
 
 
-  // todo Modify to return a sequence of Regexes
-  private def getRegex: Throwable \/ Regex = {
+  /*
+    S3 object will have the following format:
+    '{
+      "regexes": [
+        "<regex1>",
+        "<regex2>,
+        ...
+        ]
+     }'
+   */
+  private def getRegexes: Throwable \/ List[Regex] = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
-    \/.fromTryCatchNonFatal(s3.getObjectAsString(bucket, key).r)
+    \/.fromTryCatchNonFatal {
+      val json = s3.getObjectAsString(bucket, key)
+      val arr = (Json.parse(json).as[JsObject] \ "regexes").as[JsArray]
+      arr.value.map(_.as[String].r).toList
+    }
+  }
+
+  @tailrec
+  private def checkTerm(term: String, locale: Locale, regexes: List[Regex]): (String, Boolean) = regexes match {
+    case Nil => (term, false)
+    case head :: tail =>
+      if (head.findFirstMatchIn(term.toLowerCase(locale)).isDefined)
+        (term, true) else checkTerm(term, locale, tail)
   }
 
   private def checkTerms(input: InputTerms): Throwable \/ Seq[(String, Boolean)] = {
     // todo Ignore locale for now...
     val locale = Locale.getDefault
-    getRegex.map(regex => {
-      input.terms.map(w => w.toLowerCase(locale) match {
-        case regex(_*) => (w, true)
-        case _ => (w, false)
-      })
-    })
+    getRegexes.map(regexes => input.terms.map(term => checkTerm(term, locale, regexes)))
   }
 
   private def withWriter[T <: Writer](writer: T, f: Writer => Unit): Unit = try {

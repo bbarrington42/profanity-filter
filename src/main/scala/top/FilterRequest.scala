@@ -76,29 +76,29 @@ object FilterRequest {
     val tuples = body.flatMap(checkTerms)
 
     // Create the response
-    // Map this to String \/ Future[String] first, then write the output
+    // Map this to Future[String] \/ Future[String], then merge
     val response = tuples.leftMap(t => {
       val error = t.toString
-      logger.log(error)
-      buildResponse(500, error)
+      Future(buildResponse(500, error))
     }).map(f => {
       f.map(seq => {
         // Construct JsArray from tuples
         val arr = Json.arr(seq.map { case (term, profane) => Json.obj("term" -> term, "profane" -> profane) })
         val body = Json.obj("result" -> arr)
-        logger.log(body.toString)
         buildResponse(200, body)
       })
-    })
+    }).merge
 
     withWriter(new OutputStreamWriter(out), writer => {
-      response.fold(r => writer.write(r),
-        fr => {
-          fr.onComplete {
-            case Success(r) => writer.write(r)
-            case Failure(e) => writer.write(buildResponse(500, e.toString))
-          }
-        })
+      response.onComplete {
+        case Success(r) =>
+          logger.log(s"response: $r")
+          writer.write(r)
+        case Failure(e) =>
+          val r = buildResponse(500, e.toString)
+          logger.log(s"response: $r")
+          writer.write(r)
+      }
     })
   }
 
@@ -136,7 +136,6 @@ object FilterRequest {
         ]
      }'
    */
-  // Modify this to return a List of Futures. Return the result of the first failing or success if no failures. (?)
   private def getRegexes: Throwable \/ List[Regex] = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal {

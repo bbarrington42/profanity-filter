@@ -8,7 +8,10 @@ import com.amazonaws.services.s3.AmazonS3ClientBuilder
 import play.api.libs.json.{JsArray, JsObject, Json}
 
 import scala.annotation.tailrec
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
 import scala.util.matching.Regex
+import scala.util.{Failure, Success}
 import scalaz.\/
 
 
@@ -52,7 +55,6 @@ object FilterRequest {
   implicit val termsRead = Json.reads[InputTerms]
 
   // todo Bucket & key should be provided via the environment. For now just hard-code
-  // todo This should be updated to handle multiple regex objects in this bucket
   val bucket = "ccfs-profanity-regex"
   val key = "regex.txt"
 
@@ -74,24 +76,30 @@ object FilterRequest {
     val tuples = body.flatMap(checkTerms)
 
     // Create the response
-    val response = Json.stringify(tuples.fold(t => {
-      val error = t.getMessage
+    // Map this to String \/ Future[String] first, then write the output
+    val response = tuples.leftMap(t => {
+      val error = t.toString
       logger.log(error)
       buildResponse(500, error)
-    }, items => {
-      // Construct JsArray from tuples
-      val arr = Json.arr(items.map { case (term, profane) => Json.obj("term" -> term, "profane" -> profane) })
-      val body = Json.obj("result" -> arr)
-      buildResponse(200, body)
-    }))
-
-    logger.log(s"response: $response")
-
-    // ...and send it
-    withWriter(new OutputStreamWriter(out), w => {
-      w.write(response)
+    }).map(f => {
+      f.map(seq => {
+        // Construct JsArray from tuples
+        val arr = Json.arr(seq.map { case (term, profane) => Json.obj("term" -> term, "profane" -> profane) })
+        val body = Json.obj("result" -> arr)
+        logger.log(body.toString)
+        buildResponse(200, body)
+      })
     })
 
+    withWriter(new OutputStreamWriter(out), writer => {
+      response.fold(r => writer.write(r),
+        fr => {
+          fr.onComplete {
+            case Success(r) => writer.write(r)
+            case Failure(e) => writer.write(buildResponse(500, e.toString))
+          }
+        })
+    })
   }
 
   private def getBody(obj: JsObject): InputTerms =
@@ -111,11 +119,11 @@ object FilterRequest {
       "body": "body_text_goes_here"
     }
    */
-  private def buildResponse(status: Int, body: JsObject): JsObject =
-    Json.obj("statusCode" -> status, "body" -> Json.stringify(body))
+  private def buildResponse(status: Int, body: JsObject): String =
+    Json.stringify(Json.obj("statusCode" -> status, "body" -> Json.stringify(body)))
 
-  private def buildResponse(status: Int, body: String): JsObject =
-    Json.obj("statusCode" -> status, "body" -> body)
+  private def buildResponse(status: Int, body: String): String =
+    Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
 
   /*
@@ -147,10 +155,10 @@ object FilterRequest {
         (term, true) else checkTerm(term, locale, tail)
   }
 
-  private def checkTerms(input: InputTerms): Throwable \/ Seq[(String, Boolean)] = {
-    // todo Ignore locale for now...
-    val locale = Locale.getDefault
-    getRegexes.map(regexes => input.terms.map(term => checkTerm(term, locale, regexes)))
+  private def checkTerms(input: InputTerms): Throwable \/ Future[Seq[(String, Boolean)]] = {
+    val locale = new Locale(input.locale.getOrElse("en"))
+    val futures = getRegexes.map(regexes => input.terms.map(term => Future(checkTerm(term, locale, regexes))))
+    futures.map(seq => Future.sequence(seq))
   }
 
   private def withWriter[T <: Writer](writer: T, f: Writer => Unit): Unit = try {

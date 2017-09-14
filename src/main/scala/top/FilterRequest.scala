@@ -9,9 +9,9 @@ import play.api.libs.json.{JsArray, JsObject, Json}
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent.duration.Duration
+import scala.concurrent.{Await, Future}
 import scala.util.matching.Regex
-import scala.util.{Failure, Success}
 import scalaz.\/
 
 
@@ -87,8 +87,8 @@ object FilterRequest {
     val tuples = body.flatMap(checkTerms)
 
     // Create the response
-    // Map this to Future[String] \/ Future[String], then merge
-    val response = tuples.leftMap(t => {
+    // Map this to Future[String] \/ Future[String], then merge into Future[String]
+    val fr = tuples.leftMap(t => {
       val error = t.toString
       Future(buildResponse(500, error))
     }).map(f => {
@@ -100,16 +100,11 @@ object FilterRequest {
       })
     }).merge
 
+    val response = Await.result(fr, Duration.Inf)
+
     withWriter(new OutputStreamWriter(out), writer => {
-      response.onComplete {
-        case Success(r) =>
-          logger.log(s"response: $r")
-          writer.write(r)
-        case Failure(e) =>
-          val r = buildResponse(500, e.toString)
-          logger.log(s"response: $r")
-          writer.write(r)
-      }
+      logger.log(s"response: $response")
+      writer.write(response)
     })
   }
 
@@ -137,24 +132,25 @@ object FilterRequest {
     Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
 
-  // Retrieve and compile the regexes from S3
+  // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
+  // todo Put this in DynamoDB
   // todo Consider storing in compiled format (?)
-  private def getRegexes: Throwable \/ List[Regex] = {
+  private def getRegexes: Throwable \/ List[() => Regex] = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal {
       val json = s3.getObjectAsString(bucket, key)
       println(s"Regex json: $json")
       val arr = (Json.parse(json).as[JsObject] \ "regexes").as[JsArray]
-      arr.value.map(_.as[String].r).toList
+      arr.value.map(jsv => () => jsv.as[String].r).toList
     }
   }
 
   // Check a single term against all regexes, stopping at the first match
   @tailrec
-  private def checkTerm(term: String, locale: Locale, regexes: List[Regex]): (String, Boolean) = regexes match {
+  private def checkTerm(term: String, locale: Locale, regexes: List[() => Regex]): (String, Boolean) = regexes match {
     case Nil => (term, false)
     case head :: tail =>
-      if (head.findFirstMatchIn(term.toLowerCase(locale)).isDefined)
+      if (head().findFirstMatchIn(term.toLowerCase(locale)).isDefined)
         (term, true) else checkTerm(term, locale, tail)
   }
 

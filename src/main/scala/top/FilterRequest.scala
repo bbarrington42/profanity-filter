@@ -80,10 +80,10 @@ object FilterRequest {
     // todo AWS API Gateway doesn't support multi-valued query string parameters.
     // todo So this is problematic trying to support existing profanity filter interface.
     // Get the request body as InputTerms
-    val body = input.flatMap(obj => \/.fromTryCatchNonFatal(getBody(obj)))
+    val body = input.flatMap(obj => getBody(obj))
     logger.log(s"Request body: $body")
 
-    // Check each term against the regex
+    // Check each term against the regexes
     val tuples = body.flatMap(checkTerms)
 
     // Create the response
@@ -113,9 +113,9 @@ object FilterRequest {
     })
   }
 
-  private def getBody(obj: JsObject): InputTerms =
   // The 'body' element is represented as a String, so it must be parsed first
-    Json.parse((obj \ "body").as[String]).as[InputTerms]
+  private def getBody(obj: JsObject): Throwable \/ InputTerms =
+    \/.fromTryCatchNonFatal(Json.parse((obj \ "body").as[String]).as[InputTerms])
 
   private def parseInput(in: InputStream): Throwable \/ JsObject =
     \/.fromTryCatchNonFatal(Json.parse(in).as[JsObject])
@@ -137,6 +137,8 @@ object FilterRequest {
     Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
 
+  // Retrieve and compile the regexes from S3
+  // todo Consider storing in compiled format (?)
   private def getRegexes: Throwable \/ List[Regex] = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal {
@@ -163,6 +165,7 @@ object FilterRequest {
     futures.map(seq => Future.sequence(seq))
   }
 
+  // Ensure the Writer gets closed
   private def withWriter[T <: Writer](writer: T, f: Writer => Unit): Unit = try {
     f(writer)
   } finally {

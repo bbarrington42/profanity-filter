@@ -131,19 +131,25 @@ object FilterRequest {
   private def buildResponse(status: Int, body: String): String =
     Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
-
-  // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
-  // todo Put this in DynamoDB
-  // todo Consider storing in compiled format (?)
-  private def getRegexes: Throwable \/ List[() => Regex] = {
-    val s3 = AmazonS3ClientBuilder.defaultClient()
+  private def parseRegexes(json: String): Throwable \/ List[() => Regex] =
     \/.fromTryCatchNonFatal {
-      val json = s3.getObjectAsString(bucket, key)
-      println(s"Regex json: $json")
       val arr = (Json.parse(json).as[JsObject] \ "regexes").as[JsArray]
       arr.value.map(jsv => () => jsv.as[String].r).toList
     }
-  }
+
+  // todo Put this in DynamoDB
+  // todo Consider storing in compiled format (?)
+  private def getRegexText: Throwable \/ String =
+    \/.fromTryCatchNonFatal {
+      val s3 = AmazonS3ClientBuilder.defaultClient()
+      s3.getObjectAsString(bucket, key)
+    }
+
+  // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
+  private def getRegexes: Throwable \/ List[() => Regex] =
+    getRegexText.flatMap(parseRegexes)
+
+
 
   // Check a single term against all regexes, stopping at the first match
   @tailrec
@@ -173,6 +179,16 @@ object FilterRequest {
     val inputString =
       """{
         |    "body":"{\n    \"locale\": \"en\",\n    \"terms\": [\n        \"blart\",\n        \"pussy\",\n        \"shiiit\",\n        \"f_ck\"\n  ]}"
+        |}
+      """.stripMargin
+
+    val regexes =
+      """{
+        |"regexes": [
+        |   "sh.t",
+        |   "(f|ph).c(c|k)",
+        |   "(bB).tt"
+        |]
         |}
       """.stripMargin
 

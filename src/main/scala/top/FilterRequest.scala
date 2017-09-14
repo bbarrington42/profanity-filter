@@ -184,7 +184,7 @@ object FilterRequest {
   def main(args: Array[String]): Unit = {
     val inputString =
       """{
-        |    "body":"{\n    \"locale\": \"en\",\n    \"terms\": [\n        \"blart\",\n        \"pussy\",\n        \"shiiit\",\n        \"f_ck\"\n  ]}"
+        |    "body":"{\"terms\": [\"blart\", \"shiiit\", \"f_ck\"]}"
         |}
       """.stripMargin
 
@@ -192,6 +192,7 @@ object FilterRequest {
       """{
         |"regexes": [
         |   "sh.t",
+        |   "shi{1,}t",
         |   "(f|ph).c(c|k)",
         |   "(bB).tt"
         |]
@@ -200,22 +201,14 @@ object FilterRequest {
 
 
     val is = new ByteArrayInputStream(inputString.getBytes)
-    val result = parseInput(is)
 
-    println(s"result: $result")
-
-    val terms = result.flatMap(obj => getTerms(obj))
-
-    println(s"terms: $terms")
-
-    val regexes = parseRegexes(regexString)
-
-    val r1 = for {
-      rs <- regexes
-      ts <- terms
+    val r = for {
+      ts <- parseInput(is).flatMap(getTerms)
+      _ = println(ts)
+      rs <- parseRegexes(regexString)
     } yield checkTerms(ts, rs)
 
-    r1.fold(t => {
+    r.fold(t => {
       println(t)
     }, f => {
       val seq = Await.result(f, Duration.Inf)

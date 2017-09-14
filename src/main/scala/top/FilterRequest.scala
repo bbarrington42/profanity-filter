@@ -2,6 +2,7 @@ package top
 
 import java.io._
 import java.util.Locale
+import java.util.concurrent.TimeUnit
 
 import com.amazonaws.services.lambda.runtime.Context
 import com.amazonaws.services.s3.AmazonS3ClientBuilder
@@ -80,11 +81,15 @@ object FilterRequest {
     // todo AWS API Gateway doesn't support multi-valued query string parameters.
     // todo So this is problematic trying to support existing profanity filter interface.
     // Get the request body as InputTerms
-    val body = input.flatMap(obj => getBody(obj))
-    logger.log(s"Request body: $body")
+    val terms = input.flatMap(getTerms)
+    logger.log(s"Request body: $terms")
 
     // Check each term against the regexes
-    val tuples = body.flatMap(checkTerms)
+    val tuples = for {
+      rs <- getRegexes
+      ts <- terms
+    } yield checkTerms(ts, rs)
+
 
     // Create the response
     // Map this to Future[String] \/ Future[String], then merge into Future[String]
@@ -100,7 +105,8 @@ object FilterRequest {
       })
     }).merge
 
-    val response = Await.result(fr, Duration.Inf)
+    val response = \/.fromTryCatchNonFatal(Await.result(fr, Duration(5, TimeUnit.SECONDS))).
+        leftMap(t => buildResponse(500, t.toString)).merge
 
     withWriter(new OutputStreamWriter(out), writer => {
       logger.log(s"response: $response")
@@ -109,7 +115,7 @@ object FilterRequest {
   }
 
   // The 'body' element is represented as a String, so it must be parsed first
-  private def getBody(obj: JsObject): Throwable \/ InputTerms =
+  private def getTerms(obj: JsObject): Throwable \/ InputTerms =
     \/.fromTryCatchNonFatal(Json.parse((obj \ "body").as[String]).as[InputTerms])
 
   private def parseInput(in: InputStream): Throwable \/ JsObject =
@@ -139,7 +145,7 @@ object FilterRequest {
 
   // todo Put this in DynamoDB
   // todo Consider storing in compiled format (?)
-  private def getRegexText: Throwable \/ String =
+  private def getRegexesText: Throwable \/ String =
     \/.fromTryCatchNonFatal {
       val s3 = AmazonS3ClientBuilder.defaultClient()
       s3.getObjectAsString(bucket, key)
@@ -147,7 +153,7 @@ object FilterRequest {
 
   // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
   private def getRegexes: Throwable \/ List[() => Regex] =
-    getRegexText.flatMap(parseRegexes)
+    getRegexesText.flatMap(parseRegexes)
 
 
 
@@ -161,10 +167,10 @@ object FilterRequest {
   }
 
   // Check each term in its own Future
-  private def checkTerms(input: InputTerms): Throwable \/ Future[Seq[(String, Boolean)]] = {
+  private def checkTerms(input: InputTerms, regexes: List[() => Regex]): Future[Seq[(String, Boolean)]] = {
     val locale = new Locale(input.locale.getOrElse("en"))
-    val futures = getRegexes.map(regexes => input.terms.map(term => Future(checkTerm(term, locale, regexes))))
-    futures.map(seq => Future.sequence(seq))
+    val futures = input.terms.map(term => Future(checkTerm(term, locale, regexes)))
+    Future.sequence(futures)
   }
 
   // Ensure the Writer gets closed
@@ -182,7 +188,7 @@ object FilterRequest {
         |}
       """.stripMargin
 
-    val regexes =
+    val regexString =
       """{
         |"regexes": [
         |   "sh.t",
@@ -198,8 +204,22 @@ object FilterRequest {
 
     println(s"result: $result")
 
-    val body = result.flatMap(obj => \/.fromTryCatchNonFatal(getBody(obj)))
+    val terms = result.flatMap(obj => getTerms(obj))
 
-    println(s"body: $body")
+    println(s"terms: $terms")
+
+    val regexes = parseRegexes(regexString)
+
+    val r1 = for {
+      rs <- regexes
+      ts <- terms
+    } yield checkTerms(ts, rs)
+
+    r1.fold(t => {
+      println(t)
+    }, f => {
+      val seq = Await.result(f, Duration.Inf)
+      println(seq.mkString(", "))
+    })
   }
 }

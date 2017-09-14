@@ -16,7 +16,7 @@ import scalaz.\/
 
 
 /*
-  Handles a request to check words for profanity. Retrieves the profanity regex from its bucket,
+  Handles a request to check words for profanity. Retrieves the profanity regexes from its bucket,
   compiles it, and checks the passed words against the filter. Input & output are both JSON.
 
   Input:
@@ -37,6 +37,17 @@ import scalaz.\/
       ...
     ]
   }
+
+
+  Profanity regexes are in the following format:
+    {
+      "regexes": [
+        "<regex1>",
+        "<regex2>,
+        ...
+        ]
+     }
+
  */
 
 /*
@@ -126,16 +137,6 @@ object FilterRequest {
     Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
 
-  /*
-    S3 object will have the following format:
-    '{
-      "regexes": [
-        "<regex1>",
-        "<regex2>,
-        ...
-        ]
-     }'
-   */
   private def getRegexes: Throwable \/ List[Regex] = {
     val s3 = AmazonS3ClientBuilder.defaultClient()
     \/.fromTryCatchNonFatal {
@@ -146,6 +147,7 @@ object FilterRequest {
     }
   }
 
+  // Check a single term against all regexes, stopping at the first match
   @tailrec
   private def checkTerm(term: String, locale: Locale, regexes: List[Regex]): (String, Boolean) = regexes match {
     case Nil => (term, false)
@@ -154,6 +156,7 @@ object FilterRequest {
         (term, true) else checkTerm(term, locale, tail)
   }
 
+  // Check each term in its own Future
   private def checkTerms(input: InputTerms): Throwable \/ Future[Seq[(String, Boolean)]] = {
     val locale = new Locale(input.locale.getOrElse("en"))
     val futures = getRegexes.map(regexes => input.terms.map(term => Future(checkTerm(term, locale, regexes))))

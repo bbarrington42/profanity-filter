@@ -5,8 +5,8 @@ import java.util.Locale
 import java.util.concurrent.TimeUnit
 
 import com.amazonaws.services.lambda.runtime.Context
-import com.amazonaws.services.s3.AmazonS3ClientBuilder
-import play.api.libs.json.{JsArray, JsObject, Json}
+import play.api.libs.json.{JsObject, Json}
+import top.RegexListSupport._
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -38,16 +38,6 @@ import scalaz.\/
       ...
     ]
   }
-
-
-  Profanity regexes are in the following format:
-    {
-      "regexes": [
-        "<regex1>",
-        "<regex2>,
-        ...
-        ]
-     }
 
  */
 
@@ -85,11 +75,7 @@ object FilterRequest {
     logger.log(s"Request body: $terms")
 
     // Check each term against the regexes
-    val tuples = for {
-      rs <- getRegexes
-      ts <- terms
-    } yield checkTerms(ts, rs)
-
+    val tuples = for (ts <- terms) yield checkTerms(ts, getRegexes)
 
     // Create the response
     // Map this to Future[String] \/ Future[String], then merge into one Future[String]
@@ -106,7 +92,7 @@ object FilterRequest {
     }).merge
 
     val response = \/.fromTryCatchNonFatal(Await.result(fr, Duration(5, TimeUnit.SECONDS))).
-        leftMap(t => buildResponse(500, t.toString)).merge
+      leftMap(t => buildResponse(500, t.toString)).merge
 
     withWriter(new OutputStreamWriter(out), writer => {
       logger.log(s"response: $response")
@@ -137,24 +123,9 @@ object FilterRequest {
   private def buildResponse(status: Int, body: String): String =
     Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
-  private def parseRegexes(json: String): Throwable \/ List[() => Regex] =
-    \/.fromTryCatchNonFatal {
-      val arr = (Json.parse(json).as[JsObject] \ "regexes").as[JsArray]
-      arr.value.map(jsv => () => jsv.as[String].r).toList
-    }
-
-  // todo Put this in DynamoDB
   // todo Consider storing in compiled format (?)
-  private def getRegexesText: Throwable \/ String =
-    \/.fromTryCatchNonFatal {
-      val s3 = AmazonS3ClientBuilder.defaultClient()
-      s3.getObjectAsString(bucket, key)
-    }
-
   // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
-  private def getRegexes: Throwable \/ List[() => Regex] =
-    getRegexesText.flatMap(parseRegexes)
-
+  private def getRegexes: List[() => Regex] = regexes.map(r => () => r.r).toList
 
 
   // Check a single term against all regexes, stopping at the first match
@@ -184,18 +155,7 @@ object FilterRequest {
   def main(args: Array[String]): Unit = {
     val inputString =
       """{
-        |    "body":"{\"terms\": [\"blart\", \"shiiit\", \"f_ck\"]}"
-        |}
-      """.stripMargin
-
-    val regexString =
-      """{
-        |"regexes": [
-        |   "sh.t",
-        |   "shi{1,}t",
-        |   "(f|ph).c(c|k)",
-        |   "(bB).tt"
-        |]
+        |    "body":"{\"terms\": [\"f_ck\", \"blart\", \"shit\"]}"
         |}
       """.stripMargin
 
@@ -205,8 +165,7 @@ object FilterRequest {
     val r = for {
       ts <- parseInput(is).flatMap(getTerms)
       _ = println(ts)
-      rs <- parseRegexes(regexString)
-    } yield checkTerms(ts, rs)
+    } yield checkTerms(ts, getRegexes)
 
     r.fold(t => {
       println(t)

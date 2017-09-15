@@ -17,12 +17,16 @@ object RegexListSupport {
   val regexTable = dynamoDB.getTable("Regexes")
 
   // todo As a proof of concept, just read in ALL of the regexes
-  def regexes(): Seq[String] = {
+  lazy val regexes: Seq[String] = {
     val iter = iterator()
     val lb = ListBuffer.empty[String]
     while (iter.hasNext) lb += iter.next()
     lb
   }
+
+  // todo
+  // Should validate each regex
+  def update() = {}
 
   private def iterator(): Iterator[String] = {
     val collection = regexTable.scan()

@@ -72,7 +72,7 @@ object FilterRequest {
     // todo So this is problematic trying to support existing profanity filter interface.
     // Get the request body as InputTerms
     val terms = input.flatMap(getTerms)
-    logger.log(s"Request body: $terms")
+    logger.log(s"Request terms: $terms")
 
     // Check each term against the regexes
     val tuples = for (ts <- terms) yield checkTerms(ts, getRegexes)
@@ -131,10 +131,10 @@ object FilterRequest {
   // Check a single term against all regexes, stopping at the first match
   @tailrec
   private def checkTerm(term: String, locale: Locale, regexes: List[() => Regex]): (String, Boolean) = regexes match {
-    case Nil => (term, false)
+    case Nil => term -> false
     case head :: tail =>
       if (head().findFirstMatchIn(term.toLowerCase(locale)).isDefined)
-        (term, true) else checkTerm(term, locale, tail)
+        term -> true else checkTerm(term, locale, tail)
   }
 
   // Check each term in its own Future
@@ -155,7 +155,7 @@ object FilterRequest {
   def main(args: Array[String]): Unit = {
     val inputString =
       """{
-        |    "body":"{\"terms\": [\"f_ck\", \"blart\", \"shit\"]}"
+        |    "body":"{\"terms\": [\"f_ck\", \"blart\", \"sh1t\"]}"
         |}
       """.stripMargin
 

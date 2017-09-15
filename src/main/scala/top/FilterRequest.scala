@@ -92,7 +92,7 @@ object FilterRequest {
 
 
     // Create the response
-    // Map this to Future[String] \/ Future[String], then merge into Future[String]
+    // Map this to Future[String] \/ Future[String], then merge into one Future[String]
     val fr = tuples.leftMap(t => {
       val error = t.toString
       Future(buildResponse(500, error))

@@ -6,6 +6,11 @@ import com.amazonaws.services.dynamodbv2.document._
 import scala.collection.SeqView
 import scalaz.\/
 
+/*
+  Create a view from the Iterable[Item] obtained from the ItemCollection. This will allow us to access pages
+  from DynamoDB only as they are needed. If a term fails, then the remainder of the regexes do not have to be
+  accessed.
+ */
 abstract class ItemCollectionView[T, R](itemCollection: ItemCollection[R]) extends SeqView[T, Seq[T]] {
 
   // Conversion from Item elements
@@ -14,7 +19,10 @@ abstract class ItemCollectionView[T, R](itemCollection: ItemCollection[R]) exten
   override def length = {
     val iter = iterator
     var i = 0
-    while (iter.hasNext) i += 1
+    while (iter.hasNext) {
+      iter.next
+      i += 1
+    }
     i
   }
 
@@ -22,10 +30,14 @@ abstract class ItemCollectionView[T, R](itemCollection: ItemCollection[R]) exten
     if (idx < 0) throw new IndexOutOfBoundsException(idx.toString)
     val iter = iterator
     var i = idx
-    while (iter.hasNext && i > 0) i -= 1
+    while (iter.hasNext && i > 0) {
+      iter.next
+      i -= 1
+    }
     if (i == 0) iter.next else throw new IndexOutOfBoundsException(idx.toString)
   }
 
+  // Not sure about this...
   override protected def underlying = this.asInstanceOf[Seq[T]]
 
   override def iterator = new Iterator[T] {
@@ -37,8 +49,13 @@ abstract class ItemCollectionView[T, R](itemCollection: ItemCollection[R]) exten
   }
 }
 
+// todo Change repr of regexes to contain regex in binary and string format & also the value that the user types in
 class Regexes(itemCollection: ItemCollection[ScanOutcome]) extends ItemCollectionView[String, ScanOutcome](itemCollection) {
   override def as(item: Item): String = item.getString("regex")
+}
+
+object Regexes {
+  def apply(itemCollection: ItemCollection[ScanOutcome]) = new Regexes(itemCollection)
 }
 
 /*
@@ -51,8 +68,7 @@ object RegexListSupport {
   val dynamoDB = new DynamoDB(client)
   val regexTable = dynamoDB.getTable("Regexes")
 
-  // todo As a proof of concept, just read in ALL of the regexes
-  lazy val regexes: Seq[String] = new Regexes(regexTable.scan())
+  lazy val regexes: Seq[String] = Regexes(regexTable.scan())
 
   // todo
   // Should validate each regex & store in binary format
@@ -70,6 +86,10 @@ object RegexListSupport {
     while (iter.hasNext) {
       println(iter.next())
     }
+
+    println(s"index: ${regexes(4)}")
+
+    println(regexes.length)
   }
 }
 

@@ -2,6 +2,7 @@ package top
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.document._
+import top.ItemCollectionView.ScanCollection
 
 import scala.collection.SeqView
 import scalaz.\/
@@ -11,7 +12,8 @@ import scalaz.\/
   from DynamoDB only as they are needed. If a term fails, then the remainder of the regexes do not have to be
   accessed.
  */
-abstract class ItemCollectionView[T, R](itemCollection: ItemCollection[R]) extends SeqView[T, Seq[T]] {
+
+abstract class ItemCollectionView[T](itemCollection: ScanCollection) extends SeqView[T, Seq[T]] {
 
   // Conversion from Item elements
   def as(item: Item): T
@@ -49,13 +51,17 @@ abstract class ItemCollectionView[T, R](itemCollection: ItemCollection[R]) exten
   }
 }
 
+object ItemCollectionView {
+  type ScanCollection = ItemCollection[ScanOutcome]
+}
+
 // todo Change repr of regexes to contain regex in binary and string format & also the value that the user types in
-class Regexes(itemCollection: ItemCollection[ScanOutcome]) extends ItemCollectionView[String, ScanOutcome](itemCollection) {
+class Regexes(itemCollection: ScanCollection) extends ItemCollectionView[String](itemCollection) {
   override def as(item: Item): String = item.getString("regex")
 }
 
 object Regexes {
-  def apply(itemCollection: ItemCollection[ScanOutcome]) = new Regexes(itemCollection)
+  def apply(itemCollection: ScanCollection) = new Regexes(itemCollection)
 }
 
 /*

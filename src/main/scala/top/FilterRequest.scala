@@ -125,20 +125,20 @@ object FilterRequest {
 
   // todo Consider storing in compiled format (?)
   // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
-  private def getRegexes: List[() => Regex] = regexes.map(r => () => r.r).toList
+  private def getRegexes: Seq[() => Regex] = regexes.map(r => () => r.r)
 
 
   // Check a single term against all regexes, stopping at the first match
   @tailrec
-  private def checkTerm(term: String, locale: Locale, regexes: List[() => Regex]): (String, Boolean) = regexes match {
-    case Nil => term -> false
-    case head :: tail =>
-      if (head().findFirstMatchIn(term.toLowerCase(locale)).isDefined)
-        term -> true else checkTerm(term, locale, tail)
+  private def checkTerm(term: String, locale: Locale, regexes: Seq[() => Regex]): (String, Boolean) = {
+    if (regexes.isEmpty) term -> false else {
+      if (regexes.head().findFirstMatchIn(term.toLowerCase(locale)).isDefined)
+        term -> true else checkTerm(term, locale, regexes.tail)
+    }
   }
 
   // Check each term in its own Future
-  private def checkTerms(input: InputTerms, regexes: List[() => Regex]): Future[Seq[(String, Boolean)]] = {
+  private def checkTerms(input: InputTerms, regexes: Seq[() => Regex]): Future[Seq[(String, Boolean)]] = {
     val locale = new Locale(input.locale.getOrElse("en"))
     val futures = input.terms.map(term => Future(checkTerm(term, locale, regexes)))
     Future.sequence(futures)

@@ -86,7 +86,7 @@ object RegexListSupport {
 
   def main(args: Array[String]): Unit = {
     val r = """pu(\$|s)(\$|s)."""
-    add(r)
+    println(add(r))
 
     val iter = regexes.iterator
     while (iter.hasNext) {

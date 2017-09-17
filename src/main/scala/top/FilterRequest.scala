@@ -155,7 +155,7 @@ object FilterRequest {
   def main(args: Array[String]): Unit = {
     val inputString =
       """{
-        |    "body":"{\"terms\": [\"f_ck\", \"blart\", \"sh1t\"]}"
+        |    "body":"{\"terms\": [\"f_ck\", \"blart\", \"sh1t\", \"pus$i\"]}"
         |}
       """.stripMargin
 

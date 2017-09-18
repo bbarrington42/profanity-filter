@@ -22,12 +22,12 @@ abstract class ItemCollectionView[T](itemCollection: ScanCollection) extends Seq
 
   override def length = {
     val iter = iterator
-    var i = 0
+    var len = 0
     while (iter.hasNext) {
       iter.next
-      i += 1
+      len += 1
     }
-    i
+    len
   }
 
   override def apply(idx: Int) = {
@@ -38,7 +38,7 @@ abstract class ItemCollectionView[T](itemCollection: ScanCollection) extends Seq
       iter.next
       i -= 1
     }
-    if (i == 0) iter.next else throw new IndexOutOfBoundsException(idx.toString)
+    if (iter.hasNext) iter.next else throw new IndexOutOfBoundsException(idx.toString)
   }
 
   // This implementation doesn't really have an underlying type. Just point it to itself.
@@ -108,9 +108,8 @@ object RegexListSupport {
     println(support.add(r))
 
     val iter = support.regexes.iterator
-    while (iter.hasNext) {
-      println(iter.next())
-    }
+    while (iter.hasNext) println(iter.next())
+
 
     val len = support.regexes.length
 

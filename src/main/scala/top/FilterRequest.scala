@@ -6,7 +6,6 @@ import java.util.concurrent.TimeUnit
 
 import com.amazonaws.services.lambda.runtime.Context
 import play.api.libs.json.{JsObject, Json}
-import top.RegexListSupport._
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -56,11 +55,6 @@ object FilterRequest {
 
   implicit val termsRead = Json.reads[InputTerms]
 
-  // todo Bucket & key should be provided via the environment. For now just hard-code
-  val bucket = "ccfs-profanity-regex"
-  val key = "regex.txt"
-
-
   def handler(in: InputStream, out: OutputStream, context: Context): Unit = {
 
     val logger = context.getLogger
@@ -75,7 +69,7 @@ object FilterRequest {
     logger.log(s"Request terms: $terms")
 
     // Check each term against the regexes
-    val tuples = for (ts <- terms) yield checkTerms(ts, getRegexes)
+    val tuples = for (ts <- terms) yield checkTerms(ts)
 
     // Create the response
     // Map this to Future[String] \/ Future[String], then merge into one Future[String]
@@ -123,10 +117,6 @@ object FilterRequest {
   private def buildResponse(status: Int, body: String): String =
     Json.stringify(Json.obj("statusCode" -> status, "body" -> body))
 
-  // todo Consider storing in compiled format (?)
-  // Retrieve regexes and return as a list of no argument functions so they are compiled only as needed
-  private def getRegexes: Seq[() => Regex] = regexes.map(r => () => r.r)
-
 
   // Check a single term against all regexes, stopping at the first match
   @tailrec
@@ -138,8 +128,10 @@ object FilterRequest {
   }
 
   // Check each term in its own Future
-  private def checkTerms(input: InputTerms, regexes: Seq[() => Regex]): Future[Seq[(String, Boolean)]] = {
+  private def checkTerms(input: InputTerms): Future[Seq[(String, Boolean)]] = {
     val locale = new Locale(input.locale.getOrElse("en"))
+    val support = RegexListSupport(locale)
+    val regexes = support.regexes.map(r => () => r.regex.r)
     val futures = input.terms.map(term => Future(checkTerm(term, locale, regexes)))
     Future.sequence(futures)
   }
@@ -165,7 +157,7 @@ object FilterRequest {
     val r = for {
       ts <- parseInput(is).flatMap(getTerms)
       _ = println(ts)
-    } yield checkTerms(ts, getRegexes)
+    } yield checkTerms(ts)
 
     r.fold(t => {
       println(t)

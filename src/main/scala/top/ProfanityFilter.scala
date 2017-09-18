@@ -93,11 +93,9 @@ class ProfanityFilter(locale: Locale) {
   }
 
   // Ensure lowercase
-  def build(profanity: Seq[String]): String = {
-    // todo Eventually return more than one regex. For now just return the one in an array
-    val regex = profanity.map(_.toLowerCase(locale)).map(wordRegex).mkString("|")
-    Json.stringify(Json.obj("regexes" -> Json.arr(regex)))
-  }
+  def build(profanity: Seq[String]): Seq[String] = profanity.map(_.toLowerCase(locale)).map(wordRegex)
+
+  def build(profanity: String): String = build(Seq(profanity)).head
 
 }
 

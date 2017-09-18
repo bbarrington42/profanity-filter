@@ -1,5 +1,7 @@
 package top
 
+import java.util.Locale
+
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.document._
 import top.ItemCollectionView.ScanCollection
@@ -39,7 +41,7 @@ abstract class ItemCollectionView[T](itemCollection: ScanCollection) extends Seq
     if (i == 0) iter.next else throw new IndexOutOfBoundsException(idx.toString)
   }
 
-  // Not sure about this...
+  // This implementation doesn't really have an underlying type. Just point it to itself.
   override protected def underlying = this.asInstanceOf[Seq[T]]
 
   override def iterator = new Iterator[T] {
@@ -55,9 +57,12 @@ object ItemCollectionView {
   type ScanCollection = ItemCollection[ScanOutcome]
 }
 
-// todo Change repr of regexes to contain regex in binary and string format & also the value that the user types in
-class Regexes(itemCollection: ScanCollection) extends ItemCollectionView[String](itemCollection) {
-  override def as(item: Item): String = item.getString("regex")
+case class ProfanityRegex(term: String, regex: String)
+
+class Regexes(itemCollection: ScanCollection) extends ItemCollectionView[ProfanityRegex](itemCollection) {
+  override def as(item: Item): ProfanityRegex =
+    // todo Perhaps put these column names in a config?
+    ProfanityRegex(term = item.getString("term"), regex = item.getString("regex"))
 }
 
 object Regexes {
@@ -68,34 +73,49 @@ object Regexes {
   Experimental interface for handling updates & reads of the profanity regexes. This is backed by DynamoDB.
  */
 
-object RegexListSupport {
+class RegexListSupport(locale: Locale) {
 
   val client = AmazonDynamoDBClientBuilder.standard().build()
   val dynamoDB = new DynamoDB(client)
-  val regexTable = dynamoDB.getTable("Regexes")
 
-  lazy val regexes: Seq[String] = Regexes(regexTable.scan())
+  // todo Provide table name via the environment
+  val regexTable = dynamoDB.getTable("ProfanityRegex")
 
-  // todo
-  // Should validate each regex & store in binary format
-  def add(regex: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
-    regex.r // Validate
-    val item = new Item().withString("regex", regex)
+  val profanityFilter = ProfanityFilter(locale)
+
+  lazy val regexes: Seq[ProfanityRegex] = Regexes(regexTable.scan())
+
+  def add(term: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
+    val regex = profanityFilter.build(term) // Create the regex
+    // todo Add validation here...
+
+    val item = new Item().withString("term", term).withString("regex", regex)
     regexTable.putItem(item)
   }
 
-  def main(args: Array[String]): Unit = {
-    val r = """pu(\$|s)(\$|s)."""
-    println(add(r))
+  // todo Need remove method...
 
-    val iter = regexes.iterator
+}
+
+object RegexListSupport {
+
+  def apply(locale: Locale = Locale.getDefault): RegexListSupport = new RegexListSupport(locale)
+
+  def main(args: Array[String]): Unit = {
+    val support = RegexListSupport()
+
+    val r = "pussy"
+    println(support.add(r))
+
+    val iter = support.regexes.iterator
     while (iter.hasNext) {
       println(iter.next())
     }
 
-    println(s"index: ${regexes(4)}")
+    val len = support.regexes.length
 
-    println(regexes.length)
+    println(s"index: ${support.regexes(len - 1)}")
+
+    println(len)
   }
 }
-

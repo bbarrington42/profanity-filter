@@ -6,6 +6,7 @@ import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.document._
 import org.slf4j.LoggerFactory
 import top.ItemCollectionView.ScanCollection
+import top.Regexes.ProfanityRegex
 
 import scala.collection.SeqView
 import scalaz.\/
@@ -58,8 +59,6 @@ object ItemCollectionView {
   type ScanCollection = ItemCollection[ScanOutcome]
 }
 
-case class ProfanityRegex(term: String, regex: String)
-
 class Regexes(itemCollection: ScanCollection) extends ItemCollectionView[ProfanityRegex](itemCollection) {
   override def as(item: Item): ProfanityRegex =
   // todo Perhaps put these column names in a config?
@@ -67,6 +66,8 @@ class Regexes(itemCollection: ScanCollection) extends ItemCollectionView[Profani
 }
 
 object Regexes {
+  case class ProfanityRegex(term: String, regex: String)
+
   def apply(itemCollection: ScanCollection) = new Regexes(itemCollection)
 }
 
@@ -88,7 +89,14 @@ class RegexSupport(locale: Locale) {
 
   lazy val regexes = Regexes(regexTable.scan())
 
-  def add(term: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
+  // Adding a regex directly
+  def addViaRegex(regex: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
+    val item = new Item().withString("regex", regex)
+    regexTable.putItem(item)
+  }
+
+  // Generate a regex from the term and add both
+  def addViaTerm(term: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
     val regex = profanityFilter.build(term) // Create the regex
 
     logger.info(s"Adding $regex for $term")
@@ -112,14 +120,16 @@ class RegexSupport(locale: Locale) {
 }
 
 object RegexSupport {
-
   def apply(locale: Locale = Locale.getDefault): RegexSupport = new RegexSupport(locale)
+}
 
+
+object Test {
   def main(args: Array[String]): Unit = {
     val support = RegexSupport()
 
     val r = "pussy"
-    println(support.add(r))
+    println(support.addViaTerm(r))
 
     val iter = support.regexes.iterator
     while (iter.hasNext) println(iter.next())

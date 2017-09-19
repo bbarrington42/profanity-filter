@@ -16,7 +16,7 @@ import scalaz.\/
   accessed.
  */
 
-abstract class ItemCollectionView[T](itemCollection: ScanCollection) extends SeqView[T, Seq[T]] {
+abstract class ItemCollectionView[T](scanCollection: ScanCollection) extends SeqView[T, Seq[T]] {
 
   // Conversion from Item elements
   def as(item: Item): T
@@ -46,7 +46,7 @@ abstract class ItemCollectionView[T](itemCollection: ScanCollection) extends Seq
   override protected def underlying = this.asInstanceOf[Seq[T]]
 
   override def iterator = new Iterator[T] {
-    private val iter = itemCollection.iterator()
+    private val iter = scanCollection.iterator()
 
     override def hasNext = iter.hasNext
 

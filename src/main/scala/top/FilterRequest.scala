@@ -130,7 +130,7 @@ object FilterRequest {
   // Check each term in its own Future
   private def checkTerms(input: InputTerms): Future[Seq[(String, Boolean)]] = {
     val locale = new Locale(input.locale.getOrElse("en"))
-    val support = RegexListSupport(locale)
+    val support = RegexSupport(locale)
     val regexes = support.regexes.map(r => () => r.regex.r)
     val futures = input.terms.map(term => Future(checkTerm(term, locale, regexes)))
     Future.sequence(futures)

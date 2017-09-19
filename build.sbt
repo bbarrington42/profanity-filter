@@ -27,7 +27,9 @@ libraryDependencies ++= Seq(
   "com.amazonaws" % "aws-lambda-java-core" % "1.1.0",
   "com.amazonaws" % "aws-lambda-java-events" % "1.3.0",
   "com.amazonaws" % "aws-java-sdk-s3" % "1.11.189",
-  "com.amazonaws" % "aws-java-sdk-dynamodb" % "1.11.195"
+  "com.amazonaws" % "aws-java-sdk-dynamodb" % "1.11.195",
+  "ch.qos.logback" % "logback-core" % "1.1.7",
+  "ch.qos.logback" % "logback-classic" % "1.1.7"
 )
 
 

@@ -4,6 +4,7 @@ import java.util.Locale
 
 import com.amazonaws.services.dynamodbv2.AmazonDynamoDBClientBuilder
 import com.amazonaws.services.dynamodbv2.document._
+import org.slf4j.LoggerFactory
 import top.ItemCollectionView.ScanCollection
 
 import scala.collection.SeqView
@@ -61,7 +62,7 @@ case class ProfanityRegex(term: String, regex: String)
 
 class Regexes(itemCollection: ScanCollection) extends ItemCollectionView[ProfanityRegex](itemCollection) {
   override def as(item: Item): ProfanityRegex =
-    // todo Perhaps put these column names in a config?
+  // todo Perhaps put these column names in a config?
     ProfanityRegex(term = item.getString("term"), regex = item.getString("regex"))
 }
 
@@ -73,7 +74,9 @@ object Regexes {
   Interface for handling updates & reads of the profanity regexes backed by DynamoDB.
  */
 
-class RegexListSupport(locale: Locale) {
+class RegexSupport(locale: Locale) {
+
+  val logger = LoggerFactory.getLogger(getClass)
 
   val client = AmazonDynamoDBClientBuilder.defaultClient()
   val dynamoDB = new DynamoDB(client)
@@ -87,27 +90,33 @@ class RegexListSupport(locale: Locale) {
 
   def add(term: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
     val regex = profanityFilter.build(term) // Create the regex
-    // todo Add validation here...
+
+    logger.info(s"Adding $regex for $term")
+
+    // Validate
+    if (regex.r.findFirstMatchIn(term).isEmpty)
+      throw new RuntimeException(s"Regex $regex is not valid for $term")
 
     val item = new Item().withString("term", term).withString("regex", regex)
     regexTable.putItem(item)
   }
 
-  def removeViaRegex(regex: String): Throwable \/ DeleteItemOutcome = \/.fromTryCatchNonFatal (
+  def removeViaRegex(regex: String): Throwable \/ DeleteItemOutcome = \/.fromTryCatchNonFatal {
+    logger.info(s"Removing $regex")
     regexTable.deleteItem(new KeyAttribute("regex", regex))
-  )
+  }
 
-  def removeViaTerm(term: String): Throwable \/ DeleteItemOutcome = \/.fromTryCatchNonFatal (
+  def removeViaTerm(term: String): Throwable \/ DeleteItemOutcome = \/.fromTryCatchNonFatal(
     profanityFilter.build(term)).flatMap(removeViaRegex)
 
 }
 
-object RegexListSupport {
+object RegexSupport {
 
-  def apply(locale: Locale = Locale.getDefault): RegexListSupport = new RegexListSupport(locale)
+  def apply(locale: Locale = Locale.getDefault): RegexSupport = new RegexSupport(locale)
 
   def main(args: Array[String]): Unit = {
-    val support = RegexListSupport()
+    val support = RegexSupport()
 
     val r = "pussy"
     println(support.add(r))
@@ -117,9 +126,10 @@ object RegexListSupport {
 
 
     val len = support.regexes.length
+    val index = len - 1
 
-    println(s"index: ${support.regexes(len - 1)}")
+    println(s"Regex at index $index: ${support.regexes(index)}")
 
-    println(len)
+    println(s"Length: $len")
   }
 }

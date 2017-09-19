@@ -76,15 +76,15 @@ object Regexes {
 
 class RegexSupport(locale: Locale) {
 
-  val logger = LoggerFactory.getLogger(getClass)
+  private val logger = LoggerFactory.getLogger(getClass)
 
-  val client = AmazonDynamoDBClientBuilder.defaultClient()
-  val dynamoDB = new DynamoDB(client)
+  private val client = AmazonDynamoDBClientBuilder.defaultClient()
+  private val dynamoDB = new DynamoDB(client)
 
   // todo Provide table name via the environment
-  val regexTable = dynamoDB.getTable("ProfanityRegex")
+  private val regexTable = dynamoDB.getTable("ProfanityRegex")
 
-  val profanityFilter = ProfanityFilter(locale)
+  private val profanityFilter = ProfanityFilter(locale)
 
   lazy val regexes = Regexes(regexTable.scan())
 

@@ -70,12 +70,12 @@ object Regexes {
 }
 
 /*
-  Experimental interface for handling updates & reads of the profanity regexes. This is backed by DynamoDB.
+  Interface for handling updates & reads of the profanity regexes backed by DynamoDB.
  */
 
 class RegexListSupport(locale: Locale) {
 
-  val client = AmazonDynamoDBClientBuilder.standard().build()
+  val client = AmazonDynamoDBClientBuilder.defaultClient()
   val dynamoDB = new DynamoDB(client)
 
   // todo Provide table name via the environment
@@ -83,7 +83,7 @@ class RegexListSupport(locale: Locale) {
 
   val profanityFilter = ProfanityFilter(locale)
 
-  lazy val regexes: Seq[ProfanityRegex] = Regexes(regexTable.scan())
+  lazy val regexes = Regexes(regexTable.scan())
 
   def add(term: String): Throwable \/ PutItemOutcome = \/.fromTryCatchNonFatal {
     val regex = profanityFilter.build(term) // Create the regex
@@ -93,7 +93,12 @@ class RegexListSupport(locale: Locale) {
     regexTable.putItem(item)
   }
 
-  // todo Need remove method...
+  def removeViaRegex(regex: String): Throwable \/ DeleteItemOutcome = \/.fromTryCatchNonFatal (
+    regexTable.deleteItem(new KeyAttribute("regex", regex))
+  )
+
+  def removeViaTerm(term: String): Throwable \/ DeleteItemOutcome = \/.fromTryCatchNonFatal (
+    profanityFilter.build(term)).flatMap(removeViaRegex)
 
 }
 

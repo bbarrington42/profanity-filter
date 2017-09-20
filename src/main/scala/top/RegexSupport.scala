@@ -82,7 +82,6 @@ class RegexSupport(locale: Locale) {
   private val client = AmazonDynamoDBClientBuilder.defaultClient()
   private val dynamoDB = new DynamoDB(client)
 
-  // todo Provide table name via the environment
   private val regexTable = dynamoDB.getTable("ProfanityRegex")
 
   private val profanityFilter = ProfanityFilter(locale)
@@ -120,7 +119,7 @@ class RegexSupport(locale: Locale) {
 }
 
 object RegexSupport {
-  def apply(locale: Locale = Locale.getDefault): RegexSupport = new RegexSupport(locale)
+  def apply(locale: Option[Locale] = None): RegexSupport = new RegexSupport(locale.getOrElse(Locale.getDefault))
 }
 
 

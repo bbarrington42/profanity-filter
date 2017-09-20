@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit
 
 import com.amazonaws.services.lambda.runtime.Context
 import play.api.libs.json.{JsObject, Json}
+import top.Regexes.ProfanityRegex
 
 import scala.annotation.tailrec
 import scala.concurrent.ExecutionContext.Implicits.global
@@ -69,7 +70,10 @@ object FilterRequest {
     logger.log(s"Request terms: $terms")
 
     // Check each term against the regexes
-    val tuples = for (ts <- terms) yield checkTerms(ts)
+    val tuples = for {
+      ts <- terms
+      regexes = RegexSupport(ts.locale.map(Locale.forLanguageTag)).regexes
+    } yield checkTerms(ts, regexes)
 
     // Create the response
     // Map this to Future[String] \/ Future[String], then merge into one Future[String]
@@ -95,10 +99,10 @@ object FilterRequest {
   }
 
   // The 'body' element is represented as a String, so it must be parsed first
-  private def getTerms(obj: JsObject): Throwable \/ InputTerms =
+  private[top] def getTerms(obj: JsObject): Throwable \/ InputTerms =
     \/.fromTryCatchNonFatal(Json.parse((obj \ "body").as[String]).as[InputTerms])
 
-  private def parseInput(in: InputStream): Throwable \/ JsObject =
+  private[top] def parseInput(in: InputStream): Throwable \/ JsObject =
     \/.fromTryCatchNonFatal(Json.parse(in).as[JsObject])
 
 
@@ -122,17 +126,16 @@ object FilterRequest {
   @tailrec
   private def checkTerm(term: String, locale: Locale, regexes: Seq[() => Regex]): (String, Boolean) = {
     if (regexes.isEmpty) term -> false else {
-      if (regexes.head().findFirstMatchIn(term.toLowerCase(locale)).isDefined)
+      if (regexes.head().findFirstIn(term.toLowerCase(locale)).isDefined)
         term -> true else checkTerm(term, locale, regexes.tail)
     }
   }
 
   // Check each term in its own Future
-  private def checkTerms(input: InputTerms): Future[Seq[(String, Boolean)]] = {
+  private[top] def checkTerms(input: InputTerms, regexes: Seq[ProfanityRegex]): Future[Seq[(String, Boolean)]] = {
     val locale = new Locale(input.locale.getOrElse("en"))
-    val support = RegexSupport(locale)
-    val regexes = support.regexes.map(r => () => r.regex.r)
-    val futures = input.terms.map(term => Future(checkTerm(term, locale, regexes)))
+    val rs = regexes.map(r => () => r.regex.r)
+    val futures = input.terms.map(term => Future(checkTerm(term, locale, rs)))
     Future.sequence(futures)
   }
 
@@ -151,13 +154,14 @@ object FilterRequest {
         |}
       """.stripMargin
 
+    val regexes = Seq(ProfanityRegex(regex = """f.(c|k|c{1,})(c|k|k{1,})""", term = "fuck"))
 
     val is = new ByteArrayInputStream(inputString.getBytes)
 
     val r = for {
       ts <- parseInput(is).flatMap(getTerms)
       _ = println(ts)
-    } yield checkTerms(ts)
+    } yield checkTerms(ts, regexes)
 
     r.fold(t => {
       println(t)

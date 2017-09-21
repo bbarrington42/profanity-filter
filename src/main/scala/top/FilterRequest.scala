@@ -145,29 +145,5 @@ object FilterRequest {
   } finally {
     writer.close()
   }
-
-  // Testing
-  def main(args: Array[String]): Unit = {
-    val inputString =
-      """{
-        |    "body":"{\"terms\": [\"f_ck\", \"blart\", \"sh1t\", \"pus$i\"]}"
-        |}
-      """.stripMargin
-
-    val regexes = Seq(ProfanityRegex(regex = """f.(c|k|c{1,})(c|k|k{1,})""", term = "fuck"))
-
-    val is = new ByteArrayInputStream(inputString.getBytes)
-
-    val r = for {
-      ts <- parseInput(is).flatMap(getTerms)
-      _ = println(ts)
-    } yield checkTerms(ts, regexes)
-
-    r.fold(t => {
-      println(t)
-    }, f => {
-      val seq = Await.result(f, Duration.Inf)
-      println(seq.mkString(", "))
-    })
-  }
+  
 }

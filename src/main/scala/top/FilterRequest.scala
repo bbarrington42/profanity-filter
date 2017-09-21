@@ -145,5 +145,5 @@ object FilterRequest {
   } finally {
     writer.close()
   }
-  
+
 }

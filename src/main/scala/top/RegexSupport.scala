@@ -122,23 +122,3 @@ object RegexSupport {
   def apply(locale: Option[Locale] = None): RegexSupport = new RegexSupport(locale.getOrElse(Locale.getDefault))
 }
 
-
-object Test {
-  def main(args: Array[String]): Unit = {
-    val support = RegexSupport()
-
-    val r = "pussy"
-    println(support.addViaTerm(r))
-
-    val iter = support.regexes.iterator
-    while (iter.hasNext) println(iter.next())
-
-
-    val len = support.regexes.length
-    val index = len - 1
-
-    println(s"Regex at index $index: ${support.regexes(index)}")
-
-    println(s"Length: $len")
-  }
-}
